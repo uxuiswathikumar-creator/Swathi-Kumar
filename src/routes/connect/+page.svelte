@@ -3,9 +3,17 @@
 	import Footer from '$lib/components/Footer.svelte';
 	import { WaterRipple } from '$lib/motion-core';
 	import JumpText from '$lib/components/JumpText.svelte';
+	import emailjs from '@emailjs/browser';
+	import {
+		PUBLIC_EMAILJS_SERVICE_ID,
+		PUBLIC_EMAILJS_TEMPLATE_ID,
+		PUBLIC_EMAILJS_PUBLIC_KEY
+	} from '$env/static/public';
 
 	let photoEl: HTMLDivElement;
 	let revealed = $state(false);
+	let formEl: HTMLFormElement;
+	let sendState = $state<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
 	$effect(() => {
 		if (!photoEl) return;
@@ -26,8 +34,20 @@
 		return () => observer.disconnect();
 	});
 
-	function onSubmit(e: SubmitEvent) {
+	async function onSubmit(e: SubmitEvent) {
 		e.preventDefault();
+		if (sendState === 'sending' || !formEl) return;
+		sendState = 'sending';
+		try {
+			await emailjs.sendForm(PUBLIC_EMAILJS_SERVICE_ID, PUBLIC_EMAILJS_TEMPLATE_ID, formEl, {
+				publicKey: PUBLIC_EMAILJS_PUBLIC_KEY
+			});
+			sendState = 'sent';
+			formEl.reset();
+		} catch (err) {
+			console.error('EmailJS send failed:', err);
+			sendState = 'error';
+		}
 	}
 </script>
 
@@ -50,7 +70,7 @@
 				Hi , Mate
 			</h2>
 
-			<form class="mt-[80.5px] space-y-[80.5px]" onsubmit={onSubmit}>
+			<form class="mt-[80.5px] space-y-[80.5px]" onsubmit={onSubmit} bind:this={formEl}>
 				<div class="border-b border-black/25 pb-6">
 					<input
 						type="text"
@@ -90,10 +110,21 @@
 
 				<button
 					type="submit"
-					class="w-full bg-black py-5 text-center text-base font-medium tracking-wide text-white uppercase transition-opacity hover:opacity-90"
+					disabled={sendState === 'sending'}
+					class="w-full bg-black py-5 text-center text-base font-medium tracking-wide text-white uppercase transition-opacity hover:opacity-90 disabled:opacity-60"
 				>
-					Submit
+					{sendState === 'sending' ? 'Sending…' : 'Submit'}
 				</button>
+
+				{#if sendState === 'sent'}
+					<p class="text-sm font-medium tracking-wide text-black uppercase">
+						Thanks — your message is on its way.
+					</p>
+				{:else if sendState === 'error'}
+					<p class="text-sm font-medium tracking-wide text-red-600 uppercase">
+						Something went wrong. Please try again.
+					</p>
+				{/if}
 			</form>
 		</div>
 
